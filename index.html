@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VrakGames - Jeux gratuits</title>
+<meta name="description" content="VrakGames : joue gratuitement à des jeux de football, de course et d'arcade directement dans ton navigateur.">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0c1020;color:white;font-family:Arial,sans-serif}
+header{padding:22px 7%;display:flex;justify-content:space-between;align-items:center;background:#15182c;border-bottom:1px solid #303452}
+.logo{font-size:27px;font-weight:bold;color:#7d83ff}
+.logo span{color:#43e6d0}
+nav a{color:white;text-decoration:none;margin-left:18px}
+.hero{text-align:center;padding:65px 20px;background:radial-gradient(ellipse at top,#35316e,#111426 70%)}
+.hero h1{font-size:clamp(38px,7vw,65px);margin:10px 0}
+.hero h1 span{color:#7d83ff}
+.hero p{color:#c3c6df;line-height:1.7}
+.btn{background:#7165f5;border:0;border-radius:9px;color:white;padding:13px 20px;font-weight:bold;cursor:pointer}
+section{padding:35px 7%}
+h2{font-size:29px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.card{background:#191d32;border:1px solid #303452;border-radius:15px;overflow:hidden}
+.cover{height:145px;display:grid;place-items:center;font-size:65px}
+.football{background:linear-gradient(135deg,#087f58,#25d99b)}
+.racing{background:linear-gradient(135deg,#9a326e,#ff7959)}
+.arcade{background:linear-gradient(135deg,#193b91,#8c56ff)}
+.info{padding:18px}
+.info p{color:#b6bad1;line-height:1.5;min-height:42px}
+.info button{width:100%}
+#playArea{display:none;background:#191d32;border:1px solid #393d60;border-radius:14px;padding:15px;margin-top:25px}
+canvas{width:100%;max-width:800px;display:block;margin:auto;border-radius:9px;background:#101426}
+.controls{text-align:center;margin-top:12px}
+footer{text-align:center;padding:25px;color:#aeb2cb;background:#15182c}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Vrak<span>Games</span></div>
+  <nav><a href="#jeux">Jeux</a><a href="#apropos">À propos</a></nav>
+</header>
+
+<div class="hero">
+  <p>TON UNIVERS DE JEUX VIDÉO</p>
+  <h1>Prêt à <span>jouer ?</span></h1>
+  <p>Des jeux gratuits, des défis et du fun directement dans ton navigateur !</p>
+  <a href="#jeux"><button class="btn">DÉCOUVRIR LES JEUX ↓</button></a>
+</div>
+
+<section id="jeux">
+<h2>🎮 Choisis ton jeu</h2>
+<div class="games">
+  <article class="card">
+    <div class="cover football">⚽</div>
+    <div class="info"><h3>Neon Football</h3><p>Marque des buts et bats ton adversaire !</p><button class="btn" onclick="start('football')">JOUER</button></div>
+  </article>
+  <article class="card">
+    <div class="cover racing">🏎️</div>
+    <div class="info"><h3>Turbo Circuit</h3><p>Évite les obstacles et bats ton record.</p><button class="btn" onclick="start('race')">JOUER</button></div>
+  </article>
+  <article class="card">
+    <div class="cover arcade">🚀</div>
+    <div class="info"><h3>Astro Dodge</h3><p>Esquive les météorites dans l'espace !</p><button class="btn" onclick="start('space')">JOUER</button></div>
+  </article>
+</div>
+
+<div id="playArea">
+<h2 id="gameTitle">Ton jeu</h2>
+<p id="instructions">Utilise les flèches du clavier pour jouer.</p>
+<canvas id="game" width="800" height="430"></canvas>
+<div class="controls">
+<button class="btn" onclick="restart()">RECOMMENCER</button>
+<button class="btn" onclick="stopGame()">FERMER</button>
+<p id="score">Score : 0</p>
+</div>
+</div>
+</section>
+
+<section id="apropos">
+<h2>🌟 À propos de VrakGames</h2>
+<p style="color:#b6bad1;line-height:1.8">Bienvenue sur VrakGames ! Découvre des mini-jeux gratuits directement dans ton navigateur. Le site évoluera avec de nouveaux jeux, défis et aventures.</p>
+</section>
+<footer>© <span id="year"></span> VrakGames — Place au jeu !</footer>
+
+<script>
+document.getElementById('year').textContent=new Date().getFullYear();
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let mode='football',player,ball,objects,score,playing=false,frame=0,keys={};
+function start(m){
+ mode=m;document.getElementById('playArea').style.display='block';
+ document.getElementById('gameTitle').textContent={football:'⚽ Neon Football',race:'🏎️ Turbo Circuit',space:'🚀 Astro Dodge'}[m];
+ document.getElementById('instructions').textContent=m==='football'?'Flèches ou WASD pour bouger, ESPACE près du ballon pour tirer.':m==='race'?'Flèches gauche/droite ou A/D pour éviter les obstacles.':'Flèches ou WASD pour esquiver les météorites.';
+ restart();document.getElementById('playArea').scrollIntoView({behavior:'smooth'});
+}
+function restart(){
+player={x:400,y:330};ball={x:400,y:210,vx:0,vy:0};objects=[];score=0;frame=0;playing=true;
+}
+function stopGame(){playing=false;document.getElementById('playArea').style.display='none'}
+window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function circle(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function loop(){
+requestAnimationFrame(loop);if(!playing)return;frame++;
+ctx.clearRect(0,0,800,430);
+if(mode==='football'){
+ctx.fillStyle='#087346';ctx.fillRect(0,0,800,430);
+for(let i=0;i<8;i++){ctx.fillStyle=i%2?'#087346':'#0b804b';ctx.fillRect(i*100,0,100,430)}
+ctx.strokeStyle='white';ctx.lineWidth=3;ctx.strokeRect(20,20,760,390);ctx.beginPath();ctx.moveTo(400,20);ctx.lineTo(400,410);ctx.stroke();ctx.beginPath();ctx.arc(400,215,55,0,7);ctx.stroke();
+player.x+=((keys.arrowright||keys.d?1:0)-(keys.arrowleft||keys.a?1:0))*3;
+player.y+=((keys.arrowdown||keys.s?1:0)-(keys.arrowup||keys.w?1:0))*3;
+player.x=Math.max(35,Math.min(765,player.x));player.y=Math.max(35,Math.min(395,player.y));
+if(Math.hypot(player.x-ball.x,player.y-ball.y)<35){ball.vx+=(ball.x-player.x)*.08;ball.vy+=(ball.y-player.y)*.08;if(keys[' ']){ball.vx=ball.x<400?7:-7;ball.vy=(ball.y-player.y)*.2;keys[' ']=false}}
+ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=.985;ball.vy*=.985;
+if(ball.y<30||ball.y>400)ball.vy*=-.8;
+if(ball.x<25||ball.x>775){score++;ball.x=400;ball.y=215;ball.vx=ball.vy=0}
+circle(player.x,player.y,17,'#41e6ff');circle(800-player.x,430-player.y,17,'#ff507b');circle(ball.x,ball.y,9,'white');
+}else if(mode==='race'){
+ctx.fillStyle='#151a2b';ctx.fillRect(0,0,800,430);ctx.fillStyle='#333c51';ctx.fillRect(180,0,440,430);
+ctx.strokeStyle='white';ctx.setLineDash([25,22]);ctx.beginPath();ctx.moveTo(400,0);ctx.lineTo(400,430);ctx.stroke();ctx.setLineDash([]);
+player.x+=((keys.arrowright||keys.d?1:0)-(keys.arrowleft||keys.a?1:0))*5;player.x=Math.max(210,Math.min(590,player.x));
+if(frame%35===0)objects.push({x:205+Math.random()*390,y:-25});
+objects.forEach(o=>o.y+=4);objects=objects.filter(o=>o.y<450);
+ctx.fillStyle='#41e6ff';ctx.fillRect(player.x-15,345,30,50);
+objects.forEach(o=>{ctx.fillStyle='#ff507b';ctx.fillRect(o.x-14,o.y-14,28,28);if(Math.abs(o.x-player.x)<27&&Math.abs(o.y-370)<35){playing=false;ctx.fillStyle='white';ctx.font='38px Arial';ctx.fillText('PERDU !',330,215)}});
+score+=.03;
+}else{
+ctx.fillStyle='#080e27';ctx.fillRect(0,0,800,430);
+for(let i=0;i<55;i++){ctx.fillStyle='#ffffff88';ctx.fillRect((i*137)%800,(i*71+frame*2)%430,2,2)}
+player.x+=((keys.arrowright||keys.d?1:0)-(keys.arrowleft||keys.a?1:0))*4;
+player.y+=((keys.arrowdown||keys.s?1:0)-(keys.arrowup||keys.w?1:0))*4;
+player.x=Math.max(15,Math.min(785,player.x));player.y=Math.max(15,Math.min(415,player.y));
+if(frame%25===0)objects.push({x:Math.random()*800,y:-20,r:10+Math.random()*12});
+objects.forEach(o=>o.y+=3+score*.01);objects=objects.filter(o=>o.y<450);
+ctx.fillStyle='#41e6ff';ctx.beginPath();ctx.moveTo(player.x,player.y-17);ctx.lineTo(player.x-13,player.y+13);ctx.lineTo(player.x+13,player.y+13);ctx.fill();
+objects.forEach(o=>{circle(o.x,o.y,o.r,'#ff9b55');if(Math.hypot(o.x-player.x,o.y-player.y)<o.r+10){playing=false;ctx.fillStyle='white';ctx.font='38px Arial';ctx.fillText('GAME OVER',270,215)}});
+score+=.02;
+}
+document.getElementById('score').textContent='Score : '+Math.floor(score);
+}
+loop();
+</script>
+</body>
+</html>
