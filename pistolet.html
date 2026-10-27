@@ -1,0 +1,216 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VrakGames — Circle Blaster</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#080d18;color:white;font-family:Arial,sans-serif}
+header{padding:14px;text-align:center;background:#111b2c;border-bottom:2px solid #8b5cf6}
+header h1{margin:0;color:#a78bfa;font-size:25px}
+header p{margin:6px 0 0;color:#cbd5e1;font-size:13px}
+#hud{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;padding:12px;font-weight:bold}
+.stat{background:#172438;padding:9px 13px;border-radius:9px;border:1px solid #34465e}
+#colors{text-align:center;padding:5px 8px 12px}
+button{cursor:pointer;border:1px solid #506783;background:#22344b;color:white;border-radius:8px;padding:9px 12px;font-weight:bold;margin:3px}
+button:hover{border-color:#a78bfa;background:#354761}
+button.selected{border:2px solid #a78bfa}
+#arena{position:relative;width:min(960px,100%);margin:auto}
+canvas{display:block;width:100%;height:auto;background:#09121d;border:1px solid #263a50;touch-action:none}
+#overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;background:#06101bdc;padding:20px}
+.panel{max-width:440px;background:#142236;border:1px solid #596b85;border-radius:18px;padding:25px;box-shadow:0 0 35px #8b5cf633}
+.panel h2{font-size:29px;margin:0 0 12px;color:#c4b5fd}
+.panel p{line-height:1.5;color:#d5dfed}
+#play{background:linear-gradient(90deg,#7c3aed,#0891b2);border:0;padding:13px 24px;font-size:16px}
+#bot{max-width:960px;margin:10px auto;padding:10px 14px;background:#131e30;border-radius:9px;color:#c4b5fd;min-height:40px}
+#help{text-align:center;color:#aebdd0;font-size:12px;padding:0 12px 18px;line-height:1.8}
+</style>
+</head>
+<body>
+<header>
+<h1>⚡ VRAKGAMES — CIRCLE BLASTER</h1>
+<p>Survis aux vagues et bats les boss géants !</p>
+</header>
+
+<div id="hud">
+<div class="stat">❤️ Vies : <span id="lives">3</span></div>
+<div class="stat">⭐ Score : <span id="score">0</span></div>
+<div class="stat">🔫 Balles : <span id="ammo">600</span>/600</div>
+<div class="stat">🌊 Vague : <span id="wave">1</span></div>
+<div class="stat">🏆 Niveau : <span id="level">1</span></div>
+</div>
+
+<div id="colors">
+<strong>🎨 Couleur du joueur :</strong><br>
+<button class="selected" data-color="#238bff">🔵 Bleu</button>
+<button data-color="#25e5ff">🩵 Cyan</button>
+<button data-color="#32e875">🟢 Vert</button>
+<button data-color="#b9ed55">🟩 Pistache</button>
+<button data-color="#42f5d4">🌊 Aquavert</button>
+<button data-color="#303642">⚫ Noir</button>
+</div>
+
+<div id="arena">
+<canvas id="game" width="960" height="540"></canvas>
+<div id="overlay">
+<div class="panel">
+<h2 id="title">CIRCLE BLASTER</h2>
+<p id="description">Affronte les ennemis ronds, améliore ton score et prépare-toi aux boss géants !</p>
+<button id="play">▶ JOUER</button>
+</div>
+</div>
+</div>
+<div id="bot">🤖 Aksil le bot : Prêt pour le combat ?</div>
+<div id="help">
+<strong>COMMANDES :</strong> ZQSD ou WASD ou flèches pour bouger · Souris pour viser · Clic maintenu pour tirer · R pour recharger (10 secondes) · P pour pause<br>
+Sur écran tactile : touche la zone pour déplacer et tirer vers la position touchée.
+</div>
+
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const W=canvas.width,H=canvas.height;
+let running=false,paused=false,gameOver=false,last=0,spawnTimer=0,shotTimer=0,reloadTimer=0;
+let score=0,lives=3,ammo=600,wave=1,level=1,kills=0;
+let player={x:W/2,y:H/2,r:17,speed:225,color:'#238bff',inv:0};
+let enemies=[],bullets=[],particles=[],keys={},mouse={x:W/2,y:H/2,down:false};
+let boss=null,colors=['#238bff','#25e5ff','#32e875','#b9ed55','#42f5d4','#303642'];
+const rand=(a,b)=>a+Math.random()*(b-a);
+function say(t){$('bot').textContent='🤖 Aksil le bot : '+t}
+function updateHUD(){
+$('lives').textContent=lives;$('score').textContent=score;
+$('ammo').textContent=reloadTimer>0?'Rechargement…':ammo;
+$('wave').textContent=wave;$('level').textContent=level;
+}
+function start(){
+score=0;lives=3;ammo=600;wave=1;level=1;kills=0;
+player.x=W/2;player.y=H/2;player.inv=0;
+enemies=[];bullets=[];particles=[];boss=null;
+spawnTimer=.5;shotTimer=0;reloadTimer=0;
+running=true;paused=false;gameOver=false;last=performance.now();
+$('overlay').style.display='none';say('Montre-moi ton talent !');
+updateHUD();requestAnimationFrame(loop);
+}
+$('play').onclick=()=>start();
+document.querySelectorAll('[data-color]').forEach(b=>b.onclick=()=>{
+player.color=b.dataset.color;
+document.querySelectorAll('[data-color]').forEach(x=>x.classList.toggle('selected',x===b));
+});
+window.addEventListener('keydown',e=>{
+const k=e.key.toLowerCase();keys[k]=true;
+if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
+if(k==='r'&&running&&reloadTimer<=0&&ammo<600){
+reloadTimer=10;mouse.down=false;say('Recharge en cours… protège-toi !');
+}
+if(k==='p'&&running&&!gameOver){paused=!paused;if(!paused){last=performance.now();requestAnimationFrame(loop)}else say('Pause ! Respire un peu.')}
+});
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function pointer(e){
+const r=canvas.getBoundingClientRect();
+return {x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};
+}
+canvas.addEventListener('pointermove',e=>{mouse={...mouse,...pointer(e)}});
+canvas.addEventListener('pointerdown',e=>{mouse={...mouse,...pointer(e),down:true};canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointerup',()=>mouse.down=false);
+canvas.addEventListener('pointercancel',()=>mouse.down=false);
+function burst(x,y,color,n=12){
+for(let i=0;i<n;i++){let a=rand(0,Math.PI*2),s=rand(35,210);
+particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(.2,.7),max:.7,color,r:rand(2,5)})}
+}
+function spawnEnemy(){
+const side=Math.floor(Math.random()*4);let x=side===0?0:side===1?W:rand(0,W);
+let y=side===2?0:side===3?H:rand(0,H);
+let big=wave%3===0&&!boss&&Math.random()<.18;
+enemies.push({x,y,r:big?25:rand(11,17),speed:big?rand(42,60):rand(55,88)+wave*2,
+hp:big?3:1,maxHp:big?3:1,color:big?'#ff365f':['#ff5c83','#ffae57','#c084fc'][Math.floor(Math.random()*3)],big});
+}
+function spawnBoss(){
+boss={x:W/2,y:65,r:49,hp:20+wave*3,maxHp:20+wave*3,speed:55};
+say('BOSS GÉANT ! Vise bien !');
+}
+function shoot(){
+if(ammo<=0){if(reloadTimer<=0){reloadTimer=10;say('Plus de balles ! Recharge !')}return}
+const a=Math.atan2(mouse.y-player.y,mouse.x-player.x);
+bullets.push({x:player.x+Math.cos(a)*20,y:player.y+Math.sin(a)*20,vx:Math.cos(a)*610,vy:Math.sin(a)*610,r:4,life:1.25});
+ammo--;shotTimer=.1;
+}
+function damagePlayer(){
+if(player.inv>0)return;lives--;player.inv=1.5;burst(player.x,player.y,player.color,22);
+say(lives<=1?'Attention, dernière vie !':'Aïe ! Reste en mouvement !');
+if(lives<=0){endGame();return}
+updateHUD();
+}
+function endGame(){
+running=false;gameOver=true;mouse.down=false;
+$('title').textContent='PARTIE TERMINÉE';
+$('description').textContent='Score : '+score+' · Niveau : '+level+'. Clique pour recommencer !';
+$('play').textContent='↻ RECOMMENCER';$('overlay').style.display='flex';
+say(score>500?'Excellent combat ! Tu es fort !':'Retente ta chance, tu peux mieux faire !');
+}
+function loop(now){
+if(!running||paused)return;
+let dt=Math.min((now-last)/1000,.033);last=now;
+update(dt);draw();requestAnimationFrame(loop);
+}
+function update(dt){
+if(reloadTimer>0){reloadTimer-=dt;if(reloadTimer<=0){reloadTimer=0;ammo=600;say('Chargeur plein ! Au combat !')}}
+player.inv=Math.max(0,player.inv-dt);
+let dx=0,dy=0;
+if(keys['w']||keys['z']||keys['arrowup'])dy--;
+if(keys['s']||keys['arrowdown'])dy++;
+if(keys['a']||keys['q']||keys['arrowleft'])dx--;
+if(keys['d']||keys['arrowright'])dx++;
+if(dx||dy){let m=Math.hypot(dx,dy);player.x+=dx/m*player.speed*dt;player.y+=dy/m*player.speed*dt}
+player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+player.y=Math.max(player.r,Math.min(H-player.r,player.y));
+shotTimer-=dt;if(mouse.down&&shotTimer<=0&&reloadTimer<=0)shoot();
+spawnTimer-=dt;
+if(spawnTimer<=0){if(!boss){spawnEnemy();spawnTimer=Math.max(.22,1.05-wave*.045)}}
+if(kills>=wave*8){wave++;kills=0;say('Nouvelle vague ! Continue !');if(wave%3===0&&!boss)spawnBoss();updateHUD()}
+for(let b of bullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt}
+bullets=bullets.filter(b=>b.life>0&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10);
+for(let e of enemies){
+let a=Math.atan2(player.y-e.y,player.x-e.x);e.x+=Math.cos(a)*e.speed*dt;e.y+=Math.sin(a)*e.speed*dt;
+if(Math.hypot(player.x-e.x,player.y-e.y)<player.r+e.r){if(!e.big){e.hp=0;damagePlayer()}else damagePlayer()}
+for(let b of bullets){if(b.life>0&&Math.hypot(b.x-e.x,b.y-e.y)<b.r+e.r){b.life=0;e.hp--;burst(b.x,b.y,e.color,3);
+if(e.hp<=0){score+=e.big?60:10;kills++;burst(e.x,e.y,e.color,e.big?35:14);if(Math.random()<.08)score+=10;say(score%100===0?'Incroyable ! Continue !':'Bien joué !');}}
+}
+}
+enemies=enemies.filter(e=>e.hp>0);
+if(boss){
+let a=Math.atan2(player.y-boss.y,player.x-boss.x);
+boss.x+=Math.cos(a)*boss.speed*dt*.35;boss.y+=Math.sin(a)*boss.speed*dt*.35;
+for(let b of bullets){if(b.life>0&&Math.hypot(b.x-boss.x,b.y-boss.y)<b.r+boss.r){b.life=0;boss.hp--;burst(b.x,b.y,'#ff365f',4)}}
+if(boss.hp<=0){score+=500;kills+=3;burst(boss.x,boss.y,'#ff365f',90);boss=null;say('BOSS ÉLIMINÉ ! +500 points !');updateHUD()}
+if(boss&&Math.hypot(player.x-boss.x,player.y-boss.y)<player.r+boss.r)damagePlayer();
+}
+for(let p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;p.vx*=.98;p.vy*=.98}
+particles=particles.filter(p=>p.life>0);
+let newLevel=score>=2500?level+3:score>=1700?Math.max(level,2):score>=800?Math.max(level,2):level;
+if(newLevel>level){level=newLevel;say('Niveau supérieur ! Bravo !');updateHUD()}
+updateHUD();
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='#14263a';ctx.lineWidth=1;
+for(let x=0;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+for(let y=0;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+for(let p of particles){ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+for(let b of bullets){ctx.shadowBlur=14;ctx.shadowColor='#55f6ff';ctx.fillStyle='#b5fcff';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill()}ctx.shadowBlur=0;
+for(let e of enemies){ctx.shadowBlur=15;ctx.shadowColor=e.color;ctx.fillStyle=e.color;ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+if(e.big){ctx.fillStyle='white';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2,4);ctx.fillStyle='#ff365f';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2*(e.hp/e.maxHp),4)}}
+if(boss){ctx.shadowBlur=28;ctx.shadowColor='#ff1744';ctx.fillStyle='#e11d48';ctx.beginPath();ctx.arc(boss.x,boss.y,boss.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+ctx.strokeStyle='#ffd1dc';ctx.lineWidth=4;ctx.beginPath();ctx.arc(boss.x,boss.y,boss.r+7,-Math.PI/2,-Math.PI/2+Math.PI*2*boss.hp/boss.maxHp);ctx.stroke();
+ctx.fillStyle='white';ctx.font='bold 16px Arial';ctx.textAlign='center';ctx.fillText('BOSS',boss.x,boss.y+5)}
+if(player.inv<=0||Math.floor(performance.now()/100)%2===0){ctx.shadowBlur=22;ctx.shadowColor=player.color;ctx.fillStyle=player.color;ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+let a=Math.atan2(mouse.y-player.y,mouse.x-player.x);ctx.strokeStyle='white';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(player.x+Math.cos(a)*7,player.y+Math.sin(a)*7);ctx.lineTo(player.x+Math.cos(a)*26,player.y+Math.sin(a)*26);ctx.stroke()}
+if(paused){ctx.fillStyle='#06101bcc';ctx.fillRect(0,0,W,H);ctx.fillStyle='white';ctx.font='bold 38px Arial';ctx.textAlign='center';ctx.fillText('PAUSE',W/2,H/2)}
+}
+draw();
+})();
+</script>
+</body>
+</html>
